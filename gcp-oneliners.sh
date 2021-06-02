@@ -5,8 +5,18 @@ gcloud auth activate-service-account --key-file credentials.json
 # Set configurations
 gcloud config set compute/zone us-central1-c
 
+## Compute Engine
 # View project-wide metadata
 gcloud compute project-info describe
+
+# Add project-wide SSH key
+gcloud compute project-info add-metadata --metadata-from-file ssh-keys=[LIST_PATH]
+
+# Block project-wide SSH keys
+gcloud compute instances add-metadata [INSTANCE_NAME] --metadata block-project-ssh-keys=TRUE
+
+# Add instance-wide SSH key
+gcloud compute instances add-metadata [INSTANCE_NAME] --metadata-from-file ssh-keys=[LIST_PATH]
 
 ### Cloud Storage
 # Create bucket
@@ -55,12 +65,24 @@ gcloud compute instances list --filter="zone:('us-central1-a','europe-west1-d')"
 # Move instance to a new zone
 gcloud compute instances move
 
+# Access instance from Cloud Shell via gcloud
+gcloud beta compute ssh --zone "us-central1-a" "instance-1"  --project "sada-mpietruszka-dev"
+
 # Autoscaling rolling update
 gcloud beta compute instance-groups managed rolling-action [replace,restart,start-update,stop-proactive-update]
 ### Global project config
 # Show quota stuff
 gcloud compute project-info describe --project training-307022
 gcloud compute regions describe us-central1
+
+# Pass startup-script metadata key/value to an instance
+gcloud compute instances add-metadata instance-1 --metadata=startup-script='#! /bin/bash
+apt-get update
+apt-get install -y apache2
+cat <<EOF > /var/www/index.html
+<html><body><h1>Hello World</h1>
+<p>This page was created from a simple startup script!</p>
+</body></html>' --zone us-central1-a
 
 ### GKE - https://kubernetes.io/docs/reference/kubectl/cheatsheet/
 # Create a cluster
@@ -107,6 +129,16 @@ spec:
         - containerPort: 80
 EOT
 
+# Cloud Logging query for pod logs:
+```
+resource.type="k8s_container"
+resource.labels.project_id="sada-mpietruszka-dev"
+resource.labels.location="us-central1-a"
+resource.labels.cluster_name="k1"
+resource.labels.namespace_name="default"
+labels.k8s-pod/app="flask"
+```
+
 # Expose a pod to a service:
 kubectl expose deployments nginx --port-80 --type=LoadBalancer
 
@@ -115,3 +147,30 @@ kubectl scale nginx --replicas=3
 # min 10, max 15 pods above 80%
 kubectl autoscale nginx --min=10 --max=15 --cpu=80
 
+# Get pod events
+kubectl get events
+kubectl describe pods/$pod_name
+
+## IAM
+# Create SA (service account)
+gcloud iam service-accounts create NAME \
+    --description="DESCRIPTION" \
+    --display-name="DISPLAY_NAME"
+
+# Grant your service account an IAM role on your project (let's say that your Compute Engine instance with this SA wants to call a particular Google API, like Pub/Sub)
+gcloud [projects|organizations] add-iam-policy-binding PROJECT_ID \
+    --member "serviceAccount:[NAME]@[PROJECT_ID].iam.gserviceaccount.com" \
+    --role "roles/ROLE"
+
+# Revoke a role from a user
+gcloud [projects|organizations] remove-iam-policy-binding RESOURCE --member=member --role=role-id
+
+# Allow users to impersonate service account (need to grant a user the Service Account User role) on the service account
+gcloud iam service-accounts add-iam-policy-binding [SERVICE_ACCOUNT_ID]@[PROJECT_ID].iam.gserviceaccount.com \
+    --member="user:USER_EMAIL" \ # This will typically be in the member-type:id format
+    --role="roles/iam.serviceAccountUser"
+
+# Generate access key for a service account
+gcloud iam service-accounts keys create keyfile.json --iam-account "[NAME]@[PROJECT_ID].iam.gserviceaccount.com"
+gcloud auth activate-service-account ACCOUNT --key-file=KEY_FILE
+gcloud auth print-access-token
