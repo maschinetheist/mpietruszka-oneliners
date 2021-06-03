@@ -5,6 +5,10 @@ gcloud auth activate-service-account --key-file credentials.json
 # Set configurations
 gcloud config set compute/zone us-central1-c
 
+## Resource Manager
+# View list of Org policies that are eanbled on an organization, folder, or project
+gcloud alpha resource-manager org-policies list --organization=orgidhere
+
 ## Compute Engine
 # View project-wide metadata
 gcloud compute project-info describe
@@ -150,6 +154,9 @@ kubectl autoscale nginx --min=10 --max=15 --cpu=80
 # Get pod events
 kubectl get events
 kubectl describe pods/$pod_name
+
+# Set Kubernetes namespace
+kubectl config set-context --current --namespace=boa
 
 ## IAM
 # Create SA (service account)
