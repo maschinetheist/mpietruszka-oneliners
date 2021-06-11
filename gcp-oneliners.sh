@@ -95,6 +95,9 @@ gcloud container clusters create k1 --zone us-east1-b --num-nodes=2
 # Set kubeconfig for specific cluster
 gcloud container clusters get-credentials k1
 
+# Authenticate to specific cluster's API endpoint
+gcloud container clusters get-credentials anthos-sample-cluster1 --region us-central1-c
+
 # Resize a GKE cluster
 gcloud container clusters resize CLUSTER_NAME --node-pool POOL_NAME     --num-nodes NUM_NODES
 
@@ -110,7 +113,7 @@ kubectl get pod/nginx -o jsonpath='{.spec.containers[].image}'
 # Apply changes from yaml file
 kubectl apply -f pod.yml
 
-# Create a deployment for your pods
+# Create a deployment for your pods Use EOT or EOF to parse data from from stdin
 cat <<EOT >> kubectl create -f
 apiVersion: apps/v1
 kind: Deployment
@@ -131,6 +134,34 @@ spec:
         image: nginx:1.7.9
         ports:
         - containerPort: 80
+EOT
+
+# Apply a network policy to control pod to pod communication between namespaces
+cat <<EOT >> kubectl create -f
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  namespace: secondary
+  name: deny-from-other-namespaces
+spec:
+  podSelector:
+    matchlabels:
+  ingress:
+  - from:
+    - podSelector: {}
+EOT
+
+# Apply a network policy that denies all ingress and egress traffic
+cat <<EOT >> kubectl create -f
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  - Ingress
 EOT
 
 # Cloud Logging query for pod logs:
