@@ -70,7 +70,7 @@ gcloud compute instances list --filter="zone:('us-central1-a','europe-west1-d')"
 gcloud compute instances move
 
 # Access instance from Cloud Shell via gcloud
-gcloud beta compute ssh --zone "us-central1-a" "instance-1"  --project "sada-mpietruszka-dev"
+gcloud beta compute ssh --zone "us-central1-a" "instance-1"  --project $PROJECT_ID
 
 # Autoscaling rolling update
 gcloud beta compute instance-groups managed rolling-action [replace,restart,start-update,stop-proactive-update]
@@ -164,10 +164,95 @@ spec:
   - Ingress
 EOT
 
+# Create a k8s RBAC role
+cat <<EOT >> kubectl create -f
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: product-namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: product-namespace
+  name: pod-reader
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+# This role binding allows "frank" who belongs to the pod-readers group to read pods in the "default" namespace
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: product-namespace
+subjects:
+# G Suite Google Group
+- kind: Group
+  name: pod-readers@example.com
+roleRef:
+  kind: Role # this must be Role or ClusterRole
+  name: pod-reader # this must match the name of the Role
+apiGroup: rbac.authorization.k8s.io
+EOT
+
+# Pod security policy
+cat <<EOT >> kubectl create -f
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName:  'docker/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName:  'runtime/default'
+spec:
+  privileged: false
+  # Required to prevent escalations to root.
+  allowPrivilegeEscalation: false
+  # This is redundant with non-root + disallow privilege escalation,
+  # but we can provide it for defense in depth.
+  requiredDropCapabilities:
+    - ALL
+  # Allow core volume types.
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    # Assume that persistentVolumes set up by the cluster admin are safe to use.
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    # Require the container to run without root privileges.
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    # This policy assumes the nodes are using AppArmor rather than SELinux.
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: false
+EOT
+
 # Cloud Logging query for pod logs:
 ```
 resource.type="k8s_container"
-resource.labels.project_id="sada-mpietruszka-dev"
+resource.labels.project_id="$PROJECT_ID"
 resource.labels.location="us-central1-a"
 resource.labels.cluster_name="k1"
 resource.labels.namespace_name="default"
@@ -189,7 +274,60 @@ kubectl describe pods/$pod_name
 # Set Kubernetes namespace
 kubectl config set-context --current --namespace=boa
 
+# Use kubens and kubectx to manage namespaces and clusters/contexts
+kubens list
+kubectx
+
+# Show namespace name in PS1 prompt
+kubeon
+source "/Users/$USER/code/github.com/brew/opt/kube-ps1/share/kube-ps1.sh"
+
+# View current context
+k config get-contexts
+
+# Rename context
+k config rename-context $old_context_name $new_context_name
+
+# Show pods with labels
+k -n istio-system get pods -l app=istiod --show-labels -o wide
+
+# Create a network testing pod
+# Another good one is network-multitool container image: https://hub.docker.com/r/praqma/network-multitool/
+kubectl apply -f https://k8s.io/examples/admin/dns/dnsutils.yaml
+cat <<EOT >> kubectl create -f
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dnsutils
+  namespace: default
+spec:
+  containers:
+  - name: dnsutils
+    image: gcr.io/kubernetes-e2e-test-images/dnsutils:1.3
+    command:
+      - sleep
+      - "3600"
+    imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+EOT
+
+# Test networking of the environment
+kubectl exec -i -t dnsutils -- nslookup kubernetes.default
+
 ## IAM
+# Search for users bound to specific role
+g beta asset search-all-iam-policies \
+    --query policy:"roles/test-role" \
+    --project $PROJECT_ID \
+    --format json
+
+# View recommendations from the Recommender service
+g recommender recommendations list \
+    --project=${PROJECT_ID} \
+    --location=global \
+    --recommender=google.iam.policy.Recommender \
+    --format=json
+
 # Create SA (service account)
 gcloud iam service-accounts create NAME \
     --description="DESCRIPTION" \
@@ -212,3 +350,14 @@ gcloud iam service-accounts add-iam-policy-binding [SERVICE_ACCOUNT_ID]@[PROJECT
 gcloud iam service-accounts keys create keyfile.json --iam-account "[NAME]@[PROJECT_ID].iam.gserviceaccount.com"
 gcloud auth activate-service-account ACCOUNT --key-file=KEY_FILE
 gcloud auth print-access-token
+
+## Anthos
+# Verify config using nomos
+nomos vet --source-format=unstructured
+
+## CloudBuild
+# Run a build locally
+cloud-build-local --config=cloudbuild.yaml --dryrun=false .
+
+# Trigger a build from cloudbuild.yaml
+g builds submit --config=cloudbuild.yaml
