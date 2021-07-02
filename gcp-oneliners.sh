@@ -76,7 +76,7 @@ gcloud beta compute ssh --zone "us-central1-a" "instance-1"  --project $PROJECT_
 gcloud beta compute instance-groups managed rolling-action [replace,restart,start-update,stop-proactive-update]
 ### Global project config
 # Show quota stuff
-gcloud compute project-info describe --project training-307022
+gcloud compute project-info describe --project ${PROJECT_ID}
 gcloud compute regions describe us-central1
 
 # Pass startup-script metadata key/value to an instance
