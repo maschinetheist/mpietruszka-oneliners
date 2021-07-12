@@ -5,6 +5,37 @@ gcloud auth activate-service-account --key-file credentials.json
 # Set configurations
 gcloud config set compute/zone us-central1-c
 
+# List configurations
+g config configurations list
+
+# Set project configuration
+g config configurations create $project
+g config set project $project_id
+g config set account $account_email
+
+# Activate a specific configuration
+g config configurations activate $project
+
+# Run a single command with specific configuration
+g auth list --configuration=$config_name
+
+# How to impersonate a service account for gcloud.
+# Found this on https://groups.google.com/g/cloud-speech-discuss/c/wBjDFpPW2rs?pli=1.
+# Two ways of accomplishing this:
+# 1. Download a service account credential
+# 2. Set the GOOGLE_APPLICATION_CREDENTIALS env variable pointing to the .json
+export GOOGLE_APPLICATION_CREDENTIALS="~/.Downloads/access_key.json"
+# 3. Get your auth token via:
+gcloud auth application-default print-access-token
+
+# 1. Download a service account credential
+# 2. Run:
+gcloud auth activate-service-account --key-file="~/.Downloads/access_key.json"
+# 3. Get your auth token via:
+gcloud auth print-access-token
+
+# gcloud works a bit different than AWS CLI. It does a number of admin tasks like managing projects where it requires its own project ID and its own auth token. It uses oauth2 to obtain credentials when you first setup gcloud. In order to run API queries successfully, you need an API key or SA key for your own project, not what gcloud uses.
+
 ## Resource Manager
 # View list of Org policies that are eanbled on an organization, folder, or project
 gcloud alpha resource-manager org-policies list --organization=orgidhere
