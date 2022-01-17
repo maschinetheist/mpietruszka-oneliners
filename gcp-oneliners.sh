@@ -20,6 +20,7 @@ g config configurations activate $project
 g auth list --configuration=$config_name
 
 # How to impersonate a service account for gcloud.
+# If using this for SDK access, review https://googleapis.dev/python/google-api-core/latest/client_options.html.Impersonating 
 # Found this on https://groups.google.com/g/cloud-speech-discuss/c/wBjDFpPW2rs?pli=1.
 # Two ways of accomplishing this:
 # 1. Download a service account credential
@@ -33,6 +34,9 @@ gcloud auth application-default print-access-token
 gcloud auth activate-service-account --key-file="~/.Downloads/access_key.json"
 # 3. Get your auth token via:
 gcloud auth print-access-token
+
+# When developing locally use below command to create a credentials file that can be picked up by client libraries.
+gcloud auth application-default login
 
 # gcloud works a bit different than AWS CLI. It does a number of admin tasks like managing projects where it requires its own project ID and its own auth token. It uses oauth2 to obtain credentials when you first setup gcloud. In order to run API queries successfully, you need an API key or SA key for your own project, not what gcloud uses.
 
@@ -96,6 +100,9 @@ gcloud compute instances create privatenet-us-vm --zone=us-central1-c --machine-
 
 # List instances in specific zone using filters
 gcloud compute instances list --filter="zone:('us-central1-a','europe-west1-d')"
+
+# List instance information for an internal IP
+gcloud compute instances list --filter="networkInterfaces[].networkIP:10.0.0.5"
 
 # Move instance to a new zone
 gcloud compute instances move
