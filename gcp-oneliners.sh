@@ -57,6 +57,9 @@ gcloud compute instances add-metadata [INSTANCE_NAME] --metadata block-project-s
 # Add instance-wide SSH key
 gcloud compute instances add-metadata [INSTANCE_NAME] --metadata-from-file ssh-keys=[LIST_PATH]
 
+# Show firewall rules with specific prefix
+gcloud compute firewall-rules list --project=<Project-name> --filter="NAME ~ '^k8s-'"
+
 ### Cloud Storage
 # Create bucket
 gsutil mb -l US gs://$DEVSHELL_PROJECT_ID
@@ -389,6 +392,11 @@ gcloud iam service-accounts keys create keyfile.json --iam-account "[NAME]@[PROJ
 gcloud auth activate-service-account ACCOUNT --key-file=KEY_FILE
 gcloud auth print-access-token
 
+# Filter IAM policy bindings based on a member's email address
+gcloud projects get-iam-policy $PROJECT_ID \
+    --flatten="bindings[].members" \
+    --filter="bindings.members=serviceAccount:service-012345678901@gcp-sa-vpcaccess.iam.gserviceaccount.com"
+
 ## Anthos
 # Verify config using nomos
 nomos vet --source-format=unstructured
@@ -399,3 +407,17 @@ cloud-build-local --config=cloudbuild.yaml --dryrun=false .
 
 # Trigger a build from cloudbuild.yaml
 g builds submit --config=cloudbuild.yaml
+
+# Export resources into Terraform configurations
+gcloud beta resource-config bulk-export \
+    --resource-format terraform \
+    --resource-types=storage.cnrm.cloud.google.com/StorageBucket,ComputeInstance
+
+# Access specific Google API via Rest
+curl -X GET -H "Content-Type: application/json; charset=utf-8" -H "Authorization: Bearer $(gcloud auth application-default print-access-token)" https://composer.googleapis.com//v1beta1/projects/${PROJECT_ID}/locations/us-central1/environments/?alt=json
+
+# log HTTP calls in gcloud
+gcloud --log-http
+
+# Tunnel through IAP
+gcloud compute start-iap-tunnel instance-1 8888 --local-host-port=localhost:8888
