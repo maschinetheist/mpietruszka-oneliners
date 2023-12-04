@@ -18,3 +18,6 @@ helm install $releasename $chartname -n $namespace
 
 # Get status of a chart
 helm status istio-base -n istio-system
+
+# Get chart's manifest
+helm get manifest $chart_name
