@@ -421,3 +421,11 @@ gcloud --log-http
 
 # Tunnel through IAP
 gcloud compute start-iap-tunnel instance-1 8888 --local-host-port=localhost:8888
+
+# Get billing information for Compute Engine
+gcloud alpha services api-keys create --display-name="pricing_api"
+curl -X GET https://cloudbilling.googleapis.com/v1/services?key="***REMOVED***" | jq '.services[] | select(.displayName == "Compute Engine")'
+
+## GCE Metadata
+# Get service account email
+curl --header "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/email
